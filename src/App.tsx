@@ -147,7 +147,7 @@ function App() {
             
             {/* DATE */}
           <div
-            className="flex w-38 bg-white justify-center items-center border border-gray-300 rounded-lg px-4 py-2 focus-within:ring-1 focus-within:ring-purple-500 cursor-pointer"
+            className="flex w-full sm:w-auto bg-white justify-center items-center border border-gray-300 rounded-lg px-3 py-2 focus-within:ring-1 focus-within:ring-purple-500 cursor-pointer"
             onClick={() => {
               const input = dateInputRef.current;
               if (!input) return;
@@ -163,8 +163,9 @@ function App() {
               ref={dateInputRef}
               value={dueDate}
               onChange={(event) => setDueDate(event.target.value)}
-              className="w-25 outline-none border-none bg-transparent text-gray-700 appearance-none [color-scheme:light]"
+              className="w-full min-w-[120px] outline-none border-none bg-transparent text-gray-700 text-sm [color-scheme:light]"
             />
+
           </div>
 
         </div>
