@@ -128,7 +128,7 @@ function App() {
       <section className='mt-7'>
          
          {/* UP */}
-        <div className='flex space-x-4'>
+        <div className='flex space-x-2 sm:space-x-4'>
           <div className='bg-white px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-1 focus:ring-purple-500'>
             <select
               className='outline-none border-none bg-transparent'
@@ -163,7 +163,7 @@ function App() {
               ref={dateInputRef}
               value={dueDate}
               onChange={(event) => setDueDate(event.target.value)}
-              className="w-30 outline-none border-none bg-transparent text-gray-700 appearance-none [color-scheme:light]"
+              className="w-25 outline-none border-none bg-transparent text-gray-700 appearance-none [color-scheme:light]"
             />
           </div>
 
