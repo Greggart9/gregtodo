@@ -7,6 +7,7 @@ type Task = {
   title: string;
   category: string;
   dueDate: string;
+  completed: boolean;
 };
 
 const STORAGE_KEY = 'gregtodo.tasks';
@@ -18,6 +19,10 @@ function App() {
   const [dueDate, setDueDate] = useState('');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeFilter, setActiveFilter] = useState('all');
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [editingCategory, setEditingCategory] = useState('Work');
+  const [editingDueDate, setEditingDueDate] = useState('');
   const dateInputRef = useRef<HTMLInputElement | null>(null);
   const getIconComponent = (iconName: string) => {
     const iconMap: Record<string, React.ReactNode> = {
@@ -44,7 +49,11 @@ function App() {
     try {
       const parsed = JSON.parse(saved) as Task[];
       if (Array.isArray(parsed)) {
-        setTasks(parsed);
+        const normalized = parsed.map((task) => ({
+          ...task,
+          completed: Boolean(task.completed),
+        }));
+        setTasks(normalized);
       }
     } catch {
       setTasks([]);
@@ -65,6 +74,7 @@ function App() {
       title: trimmedTitle,
       category: selectedCategory,
       dueDate,
+      completed: false,
     };
 
     setTasks((prev) => [newTask, ...prev]);
@@ -72,8 +82,56 @@ function App() {
     setDueDate('');
   };
 
+  const handleToggleComplete = (taskId: string) => {
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === taskId ? { ...task, completed: !task.completed } : task
+      )
+    );
+  };
+
+  const handleStartEdit = (task: Task) => {
+    setEditingTaskId(task.id);
+    setEditingTitle(task.title);
+    setEditingCategory(task.category);
+    setEditingDueDate(task.dueDate);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingTaskId(null);
+    setEditingTitle('');
+    setEditingCategory('Work');
+    setEditingDueDate('');
+  };
+
+  const handleSaveEdit = (taskId: string) => {
+    const trimmedTitle = editingTitle.trim();
+    if (!trimmedTitle) return;
+
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              title: trimmedTitle,
+              category: editingCategory,
+              dueDate: editingDueDate,
+            }
+          : task
+      )
+    );
+    handleCancelEdit();
+  };
+
+  const handleDeleteTask = (taskId: string) => {
+    setTasks((prev) => prev.filter((task) => task.id !== taskId));
+    if (editingTaskId === taskId) {
+      handleCancelEdit();
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-200 to-indigo-300 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-purple-200 to-indigo-300 flex items-center justify-center py-20 p-4">
        <div className='bg-white rounded-lg shadow-xl p-8 w-full max-w-4xl'>
 
 
@@ -147,7 +205,7 @@ function App() {
             
             {/* DATE */}
           <div
-            className="flex w-full sm:w-auto bg-white justify-center items-center border border-gray-300 rounded-lg px-3 py-2 focus-within:ring-1 focus-within:ring-purple-500 cursor-pointer"
+            className="relative flex w-full sm:w-auto bg-white justify-center items-center border border-gray-300 rounded-lg px-3 py-2 focus-within:ring-1 focus-within:ring-purple-500 cursor-pointer"
             onClick={() => {
               const input = dateInputRef.current;
               if (!input) return;
@@ -158,6 +216,11 @@ function App() {
               }
             }}
           >
+            {!dueDate && (
+              <span className="absolute left-3 text-sm text-gray-400 pointer-events-none">
+                dd/mm/yyyy
+              </span>
+            )}
             <input
               type="date"
               ref={dateInputRef}
@@ -207,12 +270,101 @@ function App() {
                   key={task.id}
                   className='flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3'
                 >
-                  <div>
-                    <p className='text-gray-800 font-medium'>{task.title}</p>
-                    <p className='text-sm text-gray-500'>
-                      {task.category}
-                      {task.dueDate ? ` • ${task.dueDate}` : ''}
-                    </p>
+                  <div className='flex items-start gap-3 flex-1'>
+                    <input
+                      type='checkbox'
+                      checked={task.completed}
+                      onChange={() => handleToggleComplete(task.id)}
+                      className='mt-1 h-4 w-4 accent-purple-500'
+                      aria-label={`Mark ${task.title} as done`}
+                    />
+
+                    {editingTaskId === task.id ? (
+                      <div className='flex-1 space-y-2'>
+                        <input
+                          type='text'
+                          value={editingTitle}
+                          onChange={(event) => setEditingTitle(event.target.value)}
+                          className='w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500'
+                        />
+                        <div className='flex flex-wrap gap-2'>
+                          <select
+                            className='rounded-md border border-gray-300 px-3 py-2 text-sm outline-none'
+                            value={editingCategory}
+                            onChange={(event) => setEditingCategory(event.target.value)}
+                          >
+                            <option value='Work'>Work</option>
+                            <option value='Health'>Health</option>
+                            <option value='Personal'>Personal</option>
+                            <option value='Shopping'>Shopping</option>
+                            <option value='Others'>Others</option>
+                          </select>
+                          <div className='relative'>
+                            {!editingDueDate && (
+                              <span className='absolute left-3 top-2 text-sm text-gray-400 pointer-events-none'>
+                                dd/mm/yyyy
+                              </span>
+                            )}
+                            <input
+                              type='date'
+                              value={editingDueDate}
+                              onChange={(event) => setEditingDueDate(event.target.value)}
+                              className='rounded-md border border-gray-300 px-3 py-2 text-sm outline-none [color-scheme:light]'
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <p
+                          className={
+                            task.completed
+                              ? 'text-gray-500 font-medium line-through'
+                              : 'text-gray-800 font-medium'
+                          }
+                        >
+                          {task.title}
+                        </p>
+                        <p className='text-sm text-gray-500'>
+                          {task.category}
+                          {task.dueDate ? ` • ${task.dueDate}` : ''}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className='flex items-center gap-2'>
+                    {editingTaskId === task.id ? (
+                      <>
+                        <button
+                          onClick={() => handleSaveEdit(task.id)}
+                          className='rounded-md bg-purple-500 px-3 py-2 text-sm font-medium text-white hover:bg-purple-600'
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={handleCancelEdit}
+                          className='rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100'
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleStartEdit(task)}
+                          className='rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100'
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTask(task.id)}
+                          className='rounded-md border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50'
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))
