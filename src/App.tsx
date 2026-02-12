@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { FaListCheck } from "react-icons/fa6";
 import { LuPlus, LuClipboardList, LuUser, LuBriefcase, LuHeart, LuShoppingCart } from "react-icons/lu";
 
-{/* Type Definitions */}
+// Type Definitions
 type Task = {
   id: string;
   title: string;
@@ -11,31 +11,31 @@ type Task = {
   completed: boolean;
 };
 
-{/* Constants */}
+// Constants
 const STORAGE_KEY = 'gregtodo.tasks';
 
-{/* Main Component */}
+// Main Component
 function App() {
-  {/* State - Task Input Fields */}
+  // State - Task Input Fields
   const [taskTitle, setTaskTitle] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Work');
   const [dueDate, setDueDate] = useState('');
   const [isDateFocused, setIsDateFocused] = useState(false);
 
-  {/* State - Tasks Management */}
+  // State - Tasks Management
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeFilter, setActiveFilter] = useState('all');
 
-  {/* State - Edit Mode */}
+  // State - Edit Mode
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [editingCategory, setEditingCategory] = useState('Work');
   const [editingDueDate, setEditingDueDate] = useState('');
 
-  {/* Refs */}
+  // Refs
   const dateInputRef = useRef<HTMLInputElement | null>(null);
 
-  {/* Helper Functions */}
+  // Helper Functions
   const getIconComponent = (iconName: string) => {
     const iconMap: Record<string, React.ReactNode> = {
       clipboard: <LuClipboardList className="w-4 h-4" />,
@@ -47,7 +47,7 @@ function App() {
     return iconMap[iconName];
   };
 
-  {/* Category Pills Configuration */}
+  // Category Pills Configuration
   const categoryPills = [
     { key: 'all', label: 'All', iconName: 'clipboard' },
     { key: 'Personal', label: 'Personal', iconName: 'home' },
@@ -56,7 +56,7 @@ function App() {
     { key: 'Shopping', label: 'Shopping', iconName: 'cart' },
   ];
 
-  {/* Load tasks from localStorage on mount */}
+  // Load tasks from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (!saved) return;
@@ -75,12 +75,12 @@ function App() {
     }
   }, []);
 
-  {/* Save tasks to localStorage whenever they change */}
+  // Save tasks to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
   }, [tasks]);
 
-  {/* Event Handlers - Add New Task */}
+  // Event Handlers - Add New Task
   const handleAddTask = () => {
     const trimmedTitle = taskTitle.trim();
     if (!trimmedTitle) return;
@@ -98,7 +98,7 @@ function App() {
     setDueDate('');
   };
 
-  {/* Event Handlers - Toggle Task Completion */}
+  // Event Handlers - Toggle Task Completion
   const handleToggleComplete = (taskId: string) => {
     setTasks((prev) =>
       prev.map((task) =>
@@ -107,7 +107,7 @@ function App() {
     );
   };
 
-  {/* Event Handlers - Edit Task */}
+  // Event Handlers - Edit Task
   const handleStartEdit = (task: Task) => {
     setEditingTaskId(task.id);
     setEditingTitle(task.title);
@@ -141,7 +141,7 @@ function App() {
     handleCancelEdit();
   };
 
-  {/* Event Handlers - Delete Task */}
+  // Event Handlers - Delete Task
   const handleDeleteTask = (taskId: string) => {
     setTasks((prev) => prev.filter((task) => task.id !== taskId));
     if (editingTaskId === taskId) {
@@ -149,7 +149,7 @@ function App() {
     }
   };
 
-  {/* Render */}
+  // Render
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-200 to-blue-500 flex justify-center">
       <div className='mt-16 p-8 w-full h-fit max-w-4xl'>
