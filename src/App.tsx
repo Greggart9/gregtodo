@@ -1,113 +1,56 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { FaListCheck } from "react-icons/fa6";
-import { LuPlus, LuClipboardList, LuUser, LuBriefcase, LuHeart, LuShoppingCart } from "react-icons/lu";
-
-// Type Definitions
-type Task = {
-  id: string;
-  title: string;
-  category: string;
-  dueDate: string;
-  completed: boolean;
-};
-
-// Constants
-const STORAGE_KEY = 'gregtodo.tasks';
-
-// Main Component
-function App() {
-  // State - Task Input Fields
+import React, { useEffect, useState } from 'react';
+import { Task } from './types';
+import { STORAGE_KEY, CATEGORIES, CATEGORY_COLORS, fmtDate } from './constants';
+import CursorBall from './CursorBall';
+import FloatingOrbs from './FloatingOrbs';
+export default function App() {
   const [taskTitle, setTaskTitle] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Work');
   const [dueDate, setDueDate] = useState('');
-  const [isDateFocused, setIsDateFocused] = useState(false);
-
-  // State - Tasks Management
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeFilter, setActiveFilter] = useState('all');
-
-  // State - Edit Mode
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [editingCategory, setEditingCategory] = useState('Work');
   const [editingDueDate, setEditingDueDate] = useState('');
+  const [mounted, setMounted] = useState(false);
 
-  // Refs
-  const dateInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Helper Functions
-  const getIconComponent = (iconName: string) => {
-    const iconMap: Record<string, React.ReactNode> = {
-      clipboard: <LuClipboardList className="w-4 h-4" />,
-      home: <LuUser className="w-4 h-4" />,
-      briefcase: <LuBriefcase className="w-4 h-4" />,
-      heart: <LuHeart className="w-4 h-4" />,
-      cart: <LuShoppingCart className="w-4 h-4" />,
-    };
-    return iconMap[iconName];
-  };
-
-  // Category Pills Configuration
-  const categoryPills = [
-    { key: 'all', label: 'All', iconName: 'clipboard' },
-    { key: 'Personal', label: 'Personal', iconName: 'home' },
-    { key: 'Work', label: 'Work', iconName: 'briefcase' },
-    { key: 'Health', label: 'Health', iconName: 'heart' },
-    { key: 'Shopping', label: 'Shopping', iconName: 'cart' },
-  ];
-
-  // Load tasks from localStorage on mount
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) return;
-    
+    setMounted(true);
     try {
-      const parsed = JSON.parse(saved) as Task[];
-      if (Array.isArray(parsed)) {
-        const normalized = parsed.map((task) => ({
-          ...task,
-          completed: Boolean(task.completed),
-        }));
-        setTasks(normalized);
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Task[];
+        if (Array.isArray(parsed)) setTasks(parsed.map(t => ({ ...t, completed: Boolean(t.completed) })));
       }
-    } catch {
-      setTasks([]);
-    }
+    } catch { setTasks([]); }
   }, []);
 
-  // Save tasks to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
   }, [tasks]);
 
-  // Event Handlers - Add New Task
-  const handleAddTask = () => {
-    const trimmedTitle = taskTitle.trim();
-    if (!trimmedTitle) return;
+  const completed = tasks.filter(t => t.completed).length;
+  const total = tasks.length;
+  const pct = total ? Math.round((completed / total) * 100) : 0;
 
-    const newTask: Task = {
+  const handleAddTask = () => {
+    const trimmed = taskTitle.trim();
+    if (!trimmed) return;
+    setTasks(prev => [{
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      title: trimmedTitle,
+      title: trimmed,
       category: selectedCategory,
       dueDate,
       completed: false,
-    };
-
-    setTasks((prev) => [newTask, ...prev]);
+    }, ...prev]);
     setTaskTitle('');
     setDueDate('');
   };
 
-  // Event Handlers - Toggle Task Completion
-  const handleToggleComplete = (taskId: string) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.id === taskId ? { ...task, completed: !task.completed } : task
-      )
-    );
-  };
+  const handleToggle = (id: string) =>
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
 
-  // Event Handlers - Edit Task
   const handleStartEdit = (task: Task) => {
     setEditingTaskId(task.id);
     setEditingTitle(task.title);
@@ -122,291 +65,479 @@ function App() {
     setEditingDueDate('');
   };
 
-  const handleSaveEdit = (taskId: string) => {
-    const trimmedTitle = editingTitle.trim();
-    if (!trimmedTitle) return;
-
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.id === taskId
-          ? {
-              ...task,
-              title: trimmedTitle,
-              category: editingCategory,
-              dueDate: editingDueDate,
-            }
-          : task
-      )
-    );
+  const handleSaveEdit = (id: string) => {
+    const trimmed = editingTitle.trim();
+    if (!trimmed) return;
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, title: trimmed, category: editingCategory, dueDate: editingDueDate } : t));
     handleCancelEdit();
   };
 
-  // Event Handlers - Delete Task
-  const handleDeleteTask = (taskId: string) => {
-    setTasks((prev) => prev.filter((task) => task.id !== taskId));
-    if (editingTaskId === taskId) {
-      handleCancelEdit();
-    }
+  const handleDelete = (id: string) => {
+    setTasks(prev => prev.filter(t => t.id !== id));
+    if (editingTaskId === id) handleCancelEdit();
   };
 
-  // Render
+  const filteredTasks = activeFilter === 'all' ? tasks : tasks.filter(t => t.category === activeFilter);
+  const filters = ['all', ...CATEGORIES.filter(c => c !== 'Others')];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-200 to-blue-500 flex justify-center">
-      <div className='mt-16 p-8 w-full h-fit max-w-4xl'>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; cursor: none !important; }
+        body { background: #060818; }
 
-        {/* Header */}
-        <section className='flex w-full justify-between items-center'>
-          <div className='flex flex-col items-start'>
-            <div className='flex items-center space-x-3'>
-              <FaListCheck className="text-white w-6 h-6" />
-              <h1 className="text-3xl font-bold text-blue-900 mb-1">
-                My Tasks
-              </h1>
+        @keyframes float {
+          0%, 100% { transform: translateY(0) scale(1); }
+          50% { transform: translateY(-30px) scale(1.04); }
+        }
+        @keyframes fadeSlideIn {
+          from { opacity: 0; transform: translateY(16px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes shimmer {
+          0%   { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        @keyframes pulseGold {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(201,169,110,0.4); }
+          50%       { box-shadow: 0 0 0 8px rgba(201,169,110,0); }
+        }
+
+        .app-enter { animation: fadeSlideIn 0.6s ease both; }
+        .task-row { animation: fadeSlideIn 0.3s ease both; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .task-row:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06) !important; }
+
+        .add-btn:hover { animation: pulseGold 1s ease infinite; transform: scale(1.06) !important; }
+
+        .filter-pill { transition: all 0.2s ease; }
+        .filter-pill:hover { transform: translateY(-1px); }
+
+        .checkbox-circle { transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1); }
+        .checkbox-circle:hover { transform: scale(1.15); }
+
+        .glass-input:focus { outline: none; border-color: rgba(201,169,110,0.8) !important; box-shadow: 0 0 0 3px rgba(201,169,110,0.15) !important; }
+        .glass-input::placeholder { color: rgba(255,255,255,0.2); }
+
+        .action-btn { transition: all 0.18s ease; }
+        .action-btn:hover { transform: scale(1.1); }
+
+        .progress-shine {
+          background: linear-gradient(90deg, #c9a96e, #f0d898, #c9a96e);
+          background-size: 200% auto;
+          animation: shimmer 2.5s linear infinite;
+        }
+
+        select option { background: #12111a; color: #e8e2d9; }
+      `}</style>
+
+      <CursorBall />
+      <FloatingOrbs />
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 0,
+        background: 'radial-gradient(ellipse at 20% 20%, #0d1535 0%, #060818 50%, #0a0a14 100%)',
+      }} />
+      {/* Noise grain overlay */}
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 0, opacity: 0.03,
+        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+        backgroundRepeat: 'repeat',
+      }} />
+
+      {/* Main */}
+      <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', padding: '56px 24px 80px', fontFamily: "'Outfit', sans-serif" }}>
+        <div className={mounted ? 'app-enter' : ''} style={{ maxWidth: 700, margin: '0 auto' }}>
+
+          {/* ── Header ── */}
+          <div style={{ marginBottom: 48 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#c9a96e', boxShadow: '0 0 8px #c9a96e' }} />
+              <span style={{ fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#c9a96e', fontWeight: 500 }}>
+                Greg To-do
+              </span>
             </div>
-            <p className="text-gray-600 text-left">
-              {/* All caught up! 🎉 */}
-            </p>
-          </div>
-
-          <div className='flex space-x-5'>
-            {/* <p>0% </p>
-            <p>0 of 0 tasks done</p> */}
-          </div>
-        </section>
-
-        {/* Add Task Input */}
-        <section className='mt-7'>
-          <div className='flex space-x-5'>
-            <input
-              type="text"
-              placeholder="What need to be done?"
-              value={taskTitle}
-              onChange={(event) => setTaskTitle(event.target.value)}
-              className="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-900"
-            />
-
-            <button
-              onClick={handleAddTask}
-              className="bg-blue-900 text-white px-4 py-1 rounded-lg hover:bg-blue-600 transition-colors"
-            >
-              <LuPlus />
-            </button>
-          </div>
-        </section>
-
-        {/* Category & Date Filters */}
-        <section className='mt-7'>
-          {/* Category Select & Date Picker */}
-          <div className='flex space-x-2 sm:space-x-4'>
-            {/* Category Dropdown */}
-            <div className='bg-white px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-1 focus:ring-purple-500'>
-              <select
-                className='outline-none border-none bg-transparent'
-                value={selectedCategory}
-                onChange={(event) => setSelectedCategory(event.target.value)}
-              >
-                <option value="Work">Work</option>
-                <option value="Health">Health</option>
-                <option value="Personal">Personal</option>
-                <option value="Shopping">Shopping</option>
-                <option value="Others">Others</option>
-              </select>
+            <h1 style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 'clamp(40px, 7vw, 64px)',
+              fontWeight: 500,
+              color: '#f5f0e8',
+              letterSpacing: '-0.02em',
+              lineHeight: 1.05,
+              marginBottom: 14,
+            }}>
+              My Tasks
+            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 18 }}>
+              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
+                <span style={{ color: '#c9a96e', fontWeight: 600 }}>{completed}</span> completed
+              </span>
+              <span style={{ width: 1, height: 12, background: 'rgba(255,255,255,0.1)' }} />
+              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
+                <span style={{ color: '#f5f0e8', fontWeight: 500 }}>{total - completed}</span> remaining
+              </span>
+              <span style={{ marginLeft: 'auto', fontSize: 13, color: '#c9a96e', fontWeight: 600 }}>{pct}%</span>
             </div>
+            {/* Progress bar */}
+            <div style={{ height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
+              <div className="progress-shine" style={{ height: '100%', width: `${pct}%`, borderRadius: 2, transition: 'width 0.5s ease' }} />
+            </div>
+          </div>
 
-            {/* Date Picker */}
-            <div
-              className="relative flex w-full sm:w-auto bg-white justify-center items-center border border-gray-300 rounded-lg px-3 py-2 focus-within:ring-1 focus-within:ring-blue-900 cursor-pointer"
-              onClick={() => {
-                const input = dateInputRef.current;
-                if (!input) return;
-                if (typeof input.showPicker === 'function') {
-                  input.showPicker();
-                } else {
-                  input.focus();
-                }
-              }}
-            >
-              {!dueDate && !isDateFocused && (
-                <span className="absolute left-3 text-sm text-gray-500 pointer-events-none select-none z-10">
-                  dd/mm/yyyy
-                </span>
-              )}
+          {/* ── Input Card (glass) ── */}
+          <div style={{
+            background: 'rgba(255,255,255,0.04)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 20,
+            padding: '24px 28px',
+            marginBottom: 28,
+            boxShadow: '0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08)',
+          }}>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
               <input
+                className="glass-input"
+                type="text"
+                placeholder="What needs to be done?"
+                value={taskTitle}
+                onChange={e => setTaskTitle(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAddTask()}
+                style={{
+                  flex: 1,
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: 12,
+                  color: '#f5f0e8',
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: 15,
+                  fontWeight: 300,
+                  padding: '12px 16px',
+                  transition: 'border-color 0.2s, box-shadow 0.2s',
+                }}
+              />
+              <button
+                className="add-btn"
+                onClick={handleAddTask}
+                style={{
+                  width: 46, height: 46,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #c9a96e, #e8ca90)',
+                  border: 'none',
+                  cursor: 'none',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                  boxShadow: '0 4px 20px rgba(201,169,110,0.4)',
+                  transition: 'transform 0.2s',
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#0e0e10" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="10" y1="4" x2="10" y2="16" />
+                  <line x1="4" y1="10" x2="16" y2="10" />
+                </svg>
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <select
+                className="glass-input"
+                value={selectedCategory}
+                onChange={e => setSelectedCategory(e.target.value)}
+                style={{
+                  flex: 1,
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: 10,
+                  color: '#c9a96e',
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  padding: '10px 14px',
+                  transition: 'border-color 0.2s',
+                }}
+              >
+                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input
+                className="glass-input"
                 type="date"
-                ref={dateInputRef}
                 value={dueDate}
-                onChange={(event) => setDueDate(event.target.value)}
-                onFocus={() => setIsDateFocused(true)}
-                onBlur={() => setIsDateFocused(false)}
-                className="w-full min-w-[120px] outline-none border-none bg-transparent text-gray-700 text-sm [color-scheme:light] relative z-20"
+                onChange={e => setDueDate(e.target.value)}
+                style={{
+                  flex: 1,
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: 10,
+                  color: dueDate ? '#f5f0e8' : 'rgba(255,255,255,0.25)',
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: 13,
+                  padding: '10px 14px',
+                  colorScheme: 'dark',
+                  transition: 'border-color 0.2s',
+                }}
               />
             </div>
           </div>
 
-          {/* Category Filter Pills */}
-          <div className="mt-6 flex flex-wrap gap-3">
-            {categoryPills.map((pill) => (
+          {/* ── Filter Pills ── */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 32 }}>
+            {filters.map(f => (
               <button
-                key={pill.key}
-                onClick={() => setActiveFilter(pill.key)}
-                className={
-                  activeFilter === pill.key
-                    ? 'flex items-center gap-2 rounded-full bg-blue-900 px-4 py-2 text-sm font-medium text-white shadow-sm cursor-pointer'
-                    : 'flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-gray-700 cursor-pointer hover:bg-blue-200'
-                }
+                key={f}
+                className="filter-pill"
+                onClick={() => setActiveFilter(f)}
+                style={{
+                  background: activeFilter === f
+                    ? 'linear-gradient(135deg, #c9a96e, #e8ca90)'
+                    : 'rgba(255,255,255,0.05)',
+                  backdropFilter: 'blur(12px)',
+                  border: activeFilter === f ? '1px solid transparent' : '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 100,
+                  color: activeFilter === f ? '#0a0a14' : 'rgba(255,255,255,0.5)',
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: 12,
+                  fontWeight: activeFilter === f ? 600 : 400,
+                  letterSpacing: '0.06em',
+                  padding: '7px 18px',
+                  cursor: 'none',
+                  textTransform: 'capitalize',
+                  boxShadow: activeFilter === f ? '0 4px 16px rgba(201,169,110,0.3)' : 'none',
+                }}
               >
-                {getIconComponent(pill.iconName)}
-                <span>{pill.label}</span>
+                {f === 'all' ? 'All' : f}
               </button>
             ))}
           </div>
-        </section>
 
-        {/* Tasks List */}
-        <section>
-          <div className='mt-8 space-y-3 p-8 border border-dashed border-gray-300 rounded-lg flex flex-col'>
-            {(() => {
-              // Filter tasks based on active category
-              const filteredTasks = activeFilter === 'all'
-                ? tasks
-                : tasks.filter((task) => task.category === activeFilter);
+          {/* ── Section Label ── */}
+          <div style={{ fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.18)', marginBottom: 16, paddingLeft: 4 }}>
+            — {activeFilter === 'all' ? 'All tasks' : activeFilter}
+          </div>
 
-              // Show message if no tasks
-              if (filteredTasks.length === 0) {
-                return (
-                  <p className='text-white text-center'>
-                    No tasks yet. Add one above!
-                  </p>
-                );
-              }
-
-              // Render task list
-              return filteredTasks.map((task) => (
+          {/* ── Tasks ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {filteredTasks.length === 0 ? (
+              <div style={{
+                textAlign: 'center', padding: '72px 0',
+                color: 'rgba(255,255,255,0.15)', fontSize: 14, fontWeight: 300,
+              }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: '50%',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  margin: '0 auto 16px',
+                }}>
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1.2" strokeLinecap="round">
+                    <rect x="3" y="2" width="12" height="14" rx="2.5" />
+                    <line x1="6.5" y1="7" x2="11.5" y2="7" />
+                    <line x1="6.5" y1="10" x2="11.5" y2="10" />
+                  </svg>
+                </div>
+                Nothing here yet
+              </div>
+            ) : (
+              filteredTasks.map((task, i) => (
                 <div
                   key={task.id}
-                  className='flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3'
+                  className="task-row"
+                  style={{
+                    background: task.completed
+                      ? 'rgba(255,255,255,0.02)'
+                      : 'rgba(255,255,255,0.05)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
+                    border: `1px solid rgba(255,255,255,${task.completed ? '0.04' : '0.09'})`,
+                    borderRadius: 16,
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 14,
+                    boxShadow: '0 2px 12px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.05)',
+                    animationDelay: `${i * 0.05}s`,
+                    opacity: task.completed ? 0.5 : 1,
+                    transition: 'opacity 0.3s',
+                  }}
                 >
-                  {/* Left Side: Checkbox & Task Info */}
-                  <div className='flex items-start gap-3 flex-1'>
-                    {/* Completion Checkbox */}
-                    <input
-                      type='checkbox'
-                      checked={task.completed}
-                      onChange={() => handleToggleComplete(task.id)}
-                      className='mt-1 h-4 w-4 accent-purple-500'
-                      aria-label={`Mark ${task.title} as done`}
-                    />
-
-                    {/* Edit Mode */}
-                    {editingTaskId === task.id ? (
-                      <div className='flex-1 space-y-2'>
-                        {/* Edit Title Input */}
-                        <input
-                          type='text'
-                          value={editingTitle}
-                          onChange={(event) => setEditingTitle(event.target.value)}
-                          className='w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-900'
-                        />
-
-                        {/* Edit Category & Date */}
-                        <div className='flex flex-wrap gap-2'>
-                          {/* Category Dropdown */}
-                          <select
-                            className='rounded-md border border-gray-300 px-3 py-2 text-sm outline-none'
-                            value={editingCategory}
-                            onChange={(event) => setEditingCategory(event.target.value)}
-                          >
-                            <option value='Work'>Work</option>
-                            <option value='Health'>Health</option>
-                            <option value='Personal'>Personal</option>
-                            <option value='Shopping'>Shopping</option>
-                            <option value='Others'>Others</option>
-                          </select>
-
-                          {/* Date Picker */}
-                          <div className='relative'>
-                            {!editingDueDate && (
-                              <span className='absolute left-3 top-2 text-sm text-gray-400 pointer-events-none'>
-                                dd/mm/yyyy
-                              </span>
-                            )}
-                            <input
-                              type='date'
-                              value={editingDueDate}
-                              onChange={(event) => setEditingDueDate(event.target.value)}
-                              className='rounded-md border border-gray-300 px-3 py-2 text-sm outline-none [color-scheme:light]'
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      /* View Mode */
-                      <div>
-                        {/* Task Title */}
-                        <p
-                          className={
-                            task.completed
-                              ? 'text-gray-500 font-medium line-through'
-                              : 'text-gray-800 font-medium'
-                          }
-                        >
-                          {task.title}
-                        </p>
-
-                        {/* Task Meta (Category & Date) */}
-                        <p className='text-sm text-gray-500'>
-                          {task.category}
-                          {task.dueDate ? ` • ${task.dueDate}` : ''}
-                        </p>
-                      </div>
+                  {/* Checkbox */}
+                  <div
+                    className="checkbox-circle"
+                    onClick={() => handleToggle(task.id)}
+                    style={{
+                      width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                      background: task.completed ? 'linear-gradient(135deg, #c9a96e, #e8ca90)' : 'transparent',
+                      border: task.completed ? 'none' : '1.5px solid rgba(255,255,255,0.25)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: task.completed ? '0 2px 10px rgba(201,169,110,0.5)' : 'none',
+                    }}
+                  >
+                    {task.completed && (
+                      <svg width="11" height="9" viewBox="0 0 11 9" fill="none" stroke="#0a0a14" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="1,4.5 4.5,8 10,1" />
+                      </svg>
                     )}
                   </div>
 
-                  {/* Right Side: Action Buttons */}
-                  <div className='flex gap-2'>
-                    {editingTaskId === task.id ? (
-                      /* Edit Mode Buttons */
-                      <>
+                  {/* Content */}
+                  {editingTaskId === task.id ? (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <input
+                        className="glass-input"
+                        type="text"
+                        value={editingTitle}
+                        onChange={e => setEditingTitle(e.target.value)}
+                        autoFocus
+                        style={{
+                          background: 'rgba(255,255,255,0.08)',
+                          border: '1px solid rgba(201,169,110,0.6)',
+                          borderRadius: 10,
+                          color: '#f5f0e8',
+                          fontFamily: "'Outfit', sans-serif",
+                          fontSize: 14,
+                          padding: '9px 13px',
+                        }}
+                      />
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <select
+                          className="glass-input"
+                          value={editingCategory}
+                          onChange={e => setEditingCategory(e.target.value)}
+                          style={{
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            borderRadius: 8,
+                            color: '#c9a96e',
+                            fontFamily: "'Outfit', sans-serif",
+                            fontSize: 12,
+                            padding: '7px 11px',
+                          }}
+                        >
+                          {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        <input
+                          className="glass-input"
+                          type="date"
+                          value={editingDueDate}
+                          onChange={e => setEditingDueDate(e.target.value)}
+                          style={{
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            borderRadius: 8,
+                            color: editingDueDate ? '#f5f0e8' : 'rgba(255,255,255,0.25)',
+                            fontFamily: "'Outfit', sans-serif",
+                            fontSize: 12,
+                            padding: '7px 11px',
+                            colorScheme: 'dark',
+                          }}
+                        />
                         <button
                           onClick={() => handleSaveEdit(task.id)}
-                          className='rounded-md bg-purple-500 px-3 py-2 ml-5 text-sm font-medium text-white hover:bg-purple-600'
+                          style={{
+                            background: 'linear-gradient(135deg, #c9a96e, #e8ca90)',
+                            border: 'none', borderRadius: 8,
+                            color: '#0a0a14',
+                            fontFamily: "'Outfit', sans-serif",
+                            fontSize: 12, fontWeight: 600,
+                            padding: '7px 16px',
+                            cursor: 'none',
+                            boxShadow: '0 2px 10px rgba(201,169,110,0.35)',
+                          }}
                         >
                           Save
                         </button>
                         <button
                           onClick={handleCancelEdit}
-                          className='rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100'
+                          style={{
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.15)',
+                            borderRadius: 8,
+                            color: 'rgba(255,255,255,0.6)',
+                            fontFamily: "'Outfit', sans-serif",
+                            fontSize: 12,
+                            padding: '7px 14px',
+                            cursor: 'none',
+                          }}
                         >
                           Cancel
                         </button>
-                      </>
-                    ) : (
-                      /* View Mode Buttons */
-                      <>
-                        <button
-                          onClick={() => handleStartEdit(task)}
-                          className='rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100'
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteTask(task.id)}
-                          className='rounded-md border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50'
-                        >
-                          Delete
-                        </button>
-                      </>
-                    )}
-                  </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: 14, fontWeight: 400,
+                        color: task.completed ? 'rgba(255,255,255,0.25)' : '#f0ebe3',
+                        textDecoration: task.completed ? 'line-through' : 'none',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        marginBottom: 4,
+                      }}>
+                        {task.title}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase',
+                          fontWeight: 600,
+                          color: CATEGORY_COLORS[task.category] || '#c9a96e',
+                          background: `${CATEGORY_COLORS[task.category] || '#c9a96e'}18`,
+                          padding: '3px 8px', borderRadius: 100,
+                          border: `1px solid ${CATEGORY_COLORS[task.category] || '#c9a96e'}30`,
+                        }}>
+                          {task.category}
+                        </span>
+                        {task.dueDate && (
+                          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.28)' }}>
+                            {fmtDate(task.dueDate)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons — always visible */}
+                  {editingTaskId !== task.id && (
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                      <button
+                        className="action-btn"
+                        onClick={() => handleStartEdit(task)}
+                        title="Edit"
+                        style={{
+                          width: 34, height: 34, borderRadius: 10,
+                          background: 'rgba(124,158,245,0.15)',
+                          border: '1px solid rgba(124,158,245,0.35)',
+                          color: '#7c9ef5',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'none',
+                        }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                          <path d="M10 1.5l1.5 1.5-7.5 7.5H2.5V9L10 1.5z" />
+                        </svg>
+                      </button>
+                      <button
+                        className="action-btn"
+                        onClick={() => handleDelete(task.id)}
+                        title="Delete"
+                        style={{
+                          width: 34, height: 34, borderRadius: 10,
+                          background: 'rgba(248,113,113,0.15)',
+                          border: '1px solid rgba(248,113,113,0.35)',
+                          color: '#f87171',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'none',
+                        }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                          <line x1="2" y1="3.5" x2="11" y2="3.5" />
+                          <path d="M4.5 3.5V2.5h4v1" />
+                          <rect x="3" y="4.5" width="7" height="7" rx="1.5" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                 </div>
-              ));
-            })()}
+              ))
+            )}
           </div>
-        </section>
-  
+
+        </div>
       </div>
-    </div>
+    </>
   );
 }
-
-export default App;
